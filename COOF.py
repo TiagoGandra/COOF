@@ -183,6 +183,8 @@ st.title("Dashboard de Execução Orçamentária (Base Tesouro)")
 
 # --- 7. Configurar a Barra Lateral (Sidebar) e Adicionar Filtros ---
 with st.sidebar:
+    st.image('icmbio.png')
+
     st.header("Filtros")
 
     # --- 7.1. Filtro por Ano do Orçamento ---
