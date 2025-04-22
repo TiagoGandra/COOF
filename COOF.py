@@ -369,7 +369,7 @@ with chart_col1:
             bar_fig = px.bar(bar_data,
                              x=bar_chart_col_year, # Agora passará strings ('2024', '2025', etc.)
                              y=bar_chart_col_value,
-                             title=f'{bar_chart_col_value.replace("_"," ").title()} por Ano',
+                             title='Dotação por Ano',
                              template='plotly_dark',
                              text_auto='.2s'
                             )
@@ -416,7 +416,7 @@ with chart_col2:
             pie_fig = px.pie(pie_data,
                              names=pie_chart_col_group,
                              values=pie_chart_col_value,
-                             title=f'{pie_chart_col_value.replace("_"," ").title()} por {pie_chart_col_group.replace("_"," ").title()}',
+                             title='Dotação por Ação',
                              hole=0.3, # Estilo Donut
                              template='plotly_dark')
             # Ajusta os textos e o hover
