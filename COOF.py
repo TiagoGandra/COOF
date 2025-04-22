@@ -20,6 +20,10 @@ st.set_page_config(
     layout="wide"                   # Layout da página
 )
 
+# Inicializa o estado da sessão para controlar a visibilidade da tabela detalhada
+if 'show_po_detail' not in st.session_state:
+    st.session_state.show_po_detail = False
+
 # --- 2. Função para Carregamento e Preparação dos Dados (Extrator BI Tesouro) ---
 @st.cache_data # Cache para otimizar o carregamento
 def load_and_process_tesouro_data(file_path):
@@ -181,100 +185,134 @@ else:
 # --- 6. Título Principal do Dashboard ---
 st.title("Dashboard de Execução Orçamentária (Base Tesouro)")
 
-# --- 7. Configurar a Barra Lateral (Sidebar) e Adicionar Filtros ---
+# --- 7. Configurar a Barra Lateral (Sidebar) e Adicionar Filtros (MODIFICADO) ---
 with st.sidebar:
-    st.image('icmbio.png')
-
+    st.image("icmbio.png", width=150) # Sua logo
     st.header("Filtros")
 
-    # --- 7.1. Filtro por Ano do Orçamento ---
-    # (Inalterado)
+    # --- 7.1. Filtro por Ano do Orçamento (FILTRO PAI) ---
     if anos_disponiveis:
         selected_years = st.multiselect(
-            "Ano Orçamento:", options=anos_disponiveis, default=[2025, 2024, 2023]
+            "Ano Orçamento:",
+            options=anos_disponiveis,
+            default=[2025]
         )
     else:
         st.warning("Nenhum ano disponível para filtro.")
         selected_years = []
 
-    # --- 7.2. Filtro por Plano Orçamentário (Código) ---
-    # Usando Código agora que é string
-    filter_col_po = 'PO_Codigo'
-    if filter_col_po in df.columns:
-        # Não precisa mais de .astype(str) aqui, pois já é string
-        unique_pos = sorted(df[filter_col_po].dropna().unique())
-        selected_pos = st.multiselect(
-            f"{filter_col_po.replace('_',' ').title()}:", options=unique_pos, default=[]
-        )
+    # --- DataFrame Pré-filtrado por Ano ---
+    # Cria um DF temporário contendo apenas os dados dos anos selecionados
+    # Se nenhum ano for selecionado, usa o DF completo para mostrar todas as opções nos filtros filhos
+    if selected_years:
+        numeric_years = [int(y) for y in selected_years]
+        df_pre_filtered = df[df['Ano_Orcamento'].isin(numeric_years)].copy()
     else:
-        st.warning(f"Coluna '{filter_col_po}' não encontrada para filtro.")
-        selected_pos = []
+        # Se nenhum ano estiver selecionado, permite ver todas as opções abaixo
+        df_pre_filtered = df.copy()
 
-    # --- 7.3. Filtro por Ação (Código) ---
-    # Usando Código agora que é string
+    # --- Filtros Dependentes (Filhos de Ano) ---
+
+    # --- 7.2. Filtro por Fonte (Opções baseadas nos anos selecionados) ---
+    filter_col_fonte = 'Fonte_Codigo'
+    if filter_col_fonte in df_pre_filtered.columns:
+         # Gera lista de opções A PARTIR do df_pre_filtered
+        unique_fonte = sorted(df_pre_filtered[filter_col_fonte].dropna().unique())
+        # Verifica se a lista de opções não está vazia antes de mostrar o filtro
+        if unique_fonte:
+             selected_fonte = st.multiselect(
+                 f"{filter_col_fonte.replace('_',' ').title()}:",
+                 options=unique_fonte, # Usa a lista dinâmica
+                 default=[]
+             )
+        else:
+            st.info(f"Nenhuma opção de {filter_col_fonte.replace('_',' ').title()} encontrada para os anos selecionados.")
+            selected_fonte = [] # Garante que a variável exista como lista vazia
+    else:
+        st.sidebar.warning(f"Coluna '{filter_col_fonte}' não encontrada para filtro.")
+        selected_fonte = []
+
+    # --- 7.3. Filtro por Ação (Opções baseadas nos anos selecionados) ---
     filter_col_acao = 'Acao_Codigo'
-    if filter_col_acao in df.columns:
-        # Não precisa mais de .astype(str) aqui
-        unique_acoes = sorted(df[filter_col_acao].dropna().unique())
-        selected_acoes = st.multiselect(
-             f"{filter_col_acao.replace('_',' ').title()}:", options=unique_acoes, default=[]
-        )
+    if filter_col_acao in df_pre_filtered.columns:
+        unique_acoes = sorted(df_pre_filtered[filter_col_acao].dropna().unique())
+        if unique_acoes:
+            selected_acoes = st.multiselect(
+                 f"{filter_col_acao.replace('_',' ').title()}:",
+                 options=unique_acoes, # Usa a lista dinâmica
+                 default=[]
+            )
+        else:
+            st.info(f"Nenhuma opção de {filter_col_acao.replace('_',' ').title()} encontrada para os anos selecionados.")
+            selected_acoes = []
     else:
         st.warning(f"Coluna '{filter_col_acao}' não encontrada para filtro.")
         selected_acoes = []
 
-    # --- 7.4. Filtro por Resultado Primário (Código) ---
-    # Usando Código agora que é string
+    # --- 7.4. Filtro por PO (Opções baseadas nos anos selecionados) ---
+    filter_col_po = 'PO_Codigo'
+    if filter_col_po in df_pre_filtered.columns:
+        unique_pos = sorted(df_pre_filtered[filter_col_po].dropna().unique())
+        if unique_pos:
+            selected_pos = st.multiselect(
+                f"{filter_col_po.replace('_',' ').title()}:",
+                options=unique_pos, # Usa a lista dinâmica
+                default=[]
+            )
+        else:
+            st.info(f"Nenhuma opção de {filter_col_po.replace('_',' ').title()} encontrada para os anos selecionados.")
+            selected_pos = []
+    else:
+         st.warning(f"Coluna '{filter_col_po}' não encontrada para filtro.")
+         selected_pos = []
+
+    # --- 7.5. Filtro por RP (Opções baseadas nos anos selecionados) ---
     filter_col_rp = 'RP_Codigo'
-    if filter_col_rp in df.columns:
-        # Não precisa mais de .astype(str) aqui
-        unique_rp = sorted(df[filter_col_rp].dropna().unique())
-        selected_rp = st.multiselect(
-             f"{filter_col_rp.replace('_',' ').title()}:", options=unique_rp, default=["2"]
-        )
+    if filter_col_rp in df_pre_filtered.columns:
+        unique_rp = sorted(df_pre_filtered[filter_col_rp].dropna().unique())
+        if unique_rp:
+            selected_rp = st.multiselect(
+                 f"{filter_col_rp.replace('_',' ').title()}:",
+                 options=unique_rp, # Usa a lista dinâmica
+                 default=["2"]
+            )
+        else:
+            st.info(f"Nenhuma opção de {filter_col_rp.replace('_',' ').title()} encontrada para os anos selecionados.")
+            selected_rp = []
     else:
         st.warning(f"Coluna '{filter_col_rp}' não encontrada para filtro.")
         selected_rp = []
 
-
-    # --- 7.5. Filtro por Fonte (Código) ---
-    # Usando Código agora que é string
-    filter_col_fonte = 'Fonte_Codigo'
-    if filter_col_fonte in df.columns:
-         # Não precisa mais de .astype(str) aqui
-        unique_fonte = sorted(df[filter_col_fonte].dropna().unique())
-        # Corrigido nome da variável para selected_fonte
-        selected_fonte = st.multiselect(
-             f"{filter_col_fonte.replace('_',' ').title()}:", options=unique_fonte, default=[]
-        )
-    else:
-        st.sidebar.warning(f"Coluna '{filter_col_fonte}' não encontrada para filtro.")
-        selected_fonte = [] # Define a variável mesmo se a coluna não existir
-
-
 # --- 8. Aplicar Filtros Selecionados pelo Usuário ---
-# (Lógica de aplicação dos filtros inalterada, apenas corrigido o nome da variável no filtro de fonte)
+# A lógica aqui permanece quase a mesma, pois já aplicamos os filtros
+# com base nas seleções feitas nos widgets da sidebar.
+# A diferença é que as *opções* mostradas nos widgets eram mais relevantes.
+
+# Começamos com o DataFrame completo e aplicamos TODOS os filtros selecionados
 filtered_df = df.copy()
 
+# Aplica filtro de ANO (se houver seleção)
 if selected_years:
     try:
         numeric_years = [int(y) for y in selected_years]
+        # Aplica ao filtered_df que começou como cópia completa de df
         filtered_df = filtered_df[filtered_df['Ano_Orcamento'].isin(numeric_years)].copy()
     except Exception as e:
         st.error(f"Erro ao aplicar filtro de ano: {e}")
-if selected_pos:
-     if filter_col_po in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df[filter_col_po].isin(selected_pos)].copy()
+
+# Aplica os outros filtros (Fonte, Ação, PO, RP) ao DataFrame que JÁ FOI filtrado por ano (ou não, se nenhum ano foi selecionado)
+if selected_fonte:
+     if filter_col_fonte in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df[filter_col_fonte].isin(selected_fonte)].copy()
 if selected_acoes:
      if filter_col_acao in filtered_df.columns:
         filtered_df = filtered_df[filtered_df[filter_col_acao].isin(selected_acoes)].copy()
+if selected_pos:
+     if filter_col_po in filtered_df.columns:
+        filtered_df = filtered_df[filtered_df[filter_col_po].isin(selected_pos)].copy()
 if selected_rp:
      if filter_col_rp in filtered_df.columns:
         filtered_df = filtered_df[filtered_df[filter_col_rp].isin(selected_rp)].copy()
-# Corrigido para usar selected_fonte
-if selected_fonte:
-    if filter_col_fonte in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df[filter_col_fonte].isin(selected_fonte)].copy()
 
 
 # --- 9. Verificar se o DataFrame Filtrado Está Vazio ---
@@ -299,6 +337,7 @@ if filtered_df.empty:
     with chart_col2: st.plotly_chart(empty_fig, use_container_width=True)
     st.stop()
 
+st.divider() # Adiciona uma linha separadora visual
 
 # --- 10. Exibir Métricas Resumo ---
 # (Inalterado)
@@ -322,9 +361,12 @@ m_col4, m_col5, m_col6 = st.columns(3)
 with m_col4: st.metric("Total Pago", format_currency(total_pago))
 with m_col5: st.metric("Saldo de Empenho", format_currency(total_saldo_empenho), delta=format_currency(total_saldo_empenho - total_empenhado) if total_empenhado else None, help="Empenhado - Liquidado")
 with m_col6: st.metric("Saldo a Empenhar", format_currency(total_saldo_a_empenhar), delta=format_currency(total_saldo_a_empenhar - total_dotacao) if total_dotacao else None, help="Dotação - Empenhado")
+
+st.divider() # Adiciona uma linha separadora visual
+
 # --- 11. Exibir Tabela Principal Agrupada ---
 # (Inalterado - Agrupando por Acao_Codigo e Acao_Nome)
-st.header("Detalhes da Execução por Ação")
+st.header("Execução por Ação")
 table_cols_group = ['Acao_Codigo', 'Acao_Nome']
 table_cols_values = [
     'Dotacao_Lei_Creditos', 'Valor_Empenhado', 'Valor_Liquidado',
@@ -343,8 +385,79 @@ else:
     missing_cols = [col for col in required_table_cols if col not in filtered_df.columns]
     st.warning(f"Não foi possível gerar a tabela detalhada por Ação. Colunas ausentes: {missing_cols}")
 
+# --- 11.1. Botão e Lógica para Exibir/Ocultar Tabela Detalhada por PO ---
+st.divider() # Adiciona uma linha separadora visual
+
+# Define o texto do botão dinamicamente
+button_label = "Ocultar detalhado por PO" if st.session_state.show_po_detail else "Ver detalhado por PO"
+
+# Cria o botão. Quando clicado, inverte o estado 'show_po_detail'
+if st.button(button_label):
+    st.session_state.show_po_detail = not st.session_state.show_po_detail
+
+# --- 11.2. Seção da Tabela Detalhada por PO (Exibida Condicionalmente) ---
+if st.session_state.show_po_detail:
+    st.header("Execução Detalhada por PO")
+
+    # Define as colunas de agrupamento para a NOVA tabela detalhada
+    # Certifique-se que os nomes correspondem EXATAMENTE aos da sua lista tesouro_cols_new
+    detail_cols_group = [
+        'Acao_Codigo',
+        'Acao_Nome',
+        'PO_Codigo',
+        'PO_Nome',
+        'Fonte_Codigo', # Usando Fonte_Codigo como 'FONTE'
+        'PTRES'
+    ]
+    # Reutiliza a lista de colunas de valores definida anteriormente para a tabela principal
+    # Se 'table_cols_values' não estiver acessível aqui, redefina-a:
+    # table_cols_values = [
+    #     'Dotacao_Lei_Creditos', 'Valor_Empenhado', 'Valor_Liquidado',
+    #     'Valor_Pago', 'Saldo_Empenho', 'Saldo_a_Empenhar'
+    # ]
+
+    # Verifica se todas as colunas necessárias existem no DataFrame FILTRADO ATUALMENTE
+    required_detail_cols = detail_cols_group + table_cols_values
+    if all(col in filtered_df.columns for col in required_detail_cols):
+        try:
+            # Agrupa o DataFrame filtrado pelos novos níveis e soma os valores
+            detail_df_grouped = filtered_df.groupby(detail_cols_group, as_index=False)[table_cols_values].sum()
+
+            # Opcional: Remover linhas onde todos os valores monetários são zero
+            # Soma os valores absolutos das colunas de valor para cada linha
+            sum_values = detail_df_grouped[table_cols_values].abs().sum(axis=1)
+            # Mantém apenas as linhas onde a soma é maior que um pequeno valor (para evitar problemas de float)
+            detail_df_grouped = detail_df_grouped[sum_values > 0.01]
+
+            if not detail_df_grouped.empty:
+                # Ordena a tabela (opcional)
+                detail_df_grouped = detail_df_grouped.sort_values(
+                    by=['Acao_Codigo', 'PO_Codigo', 'Fonte_Codigo'],
+                    ascending=True
+                )
+
+                # Formata as colunas de moeda na tabela detalhada agrupada
+                detail_df_formatted = detail_df_grouped.copy()
+                for col in table_cols_values:
+                     # Aplica a função de formatação (certifique-se que format_currency está definida)
+                    detail_df_formatted[col] = detail_df_grouped[col].apply(format_currency)
+
+                # Exibe a tabela detalhada formatada
+                st.dataframe(detail_df_formatted, use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum dado de execução encontrado para o detalhamento por PO com os filtros atuais.")
+
+        except Exception as e:
+            st.error(f"Erro ao gerar a tabela detalhada por PO: {e}")
+            st.dataframe(filtered_df[detail_cols_group].head()) # Mostra head das colunas de grupo para debug
+
+    else:
+        # Informa quais colunas estão faltando para esta tabela específica
+        missing_cols_detail = [col for col in required_detail_cols if col not in filtered_df.columns]
+        st.warning(f"Não foi possível gerar a tabela detalhada por PO. Colunas ausentes no DataFrame: {missing_cols_detail}")
 
 # --- 12. Exibir Gráficos ---
+st.divider() # Adiciona uma linha separadora visual
 st.header("Análise Gráfica")
 chart_col1, chart_col2 = st.columns(2)
 
